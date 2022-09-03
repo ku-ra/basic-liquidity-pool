@@ -9,4 +9,8 @@ contract TokenB is ERC20 {
     constructor(uint _initialSupply) ERC20("TokenB", "TKB") { 
         _mint(msg.sender, _initialSupply);
     }
+
+    function _mint(uint _amount) public {
+        _mint(msg.sender, _amount);
+    }
 }

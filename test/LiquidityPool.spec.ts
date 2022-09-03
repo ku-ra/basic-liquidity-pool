@@ -6,6 +6,9 @@ import { BigNumber, Contract } from "ethers";
 
 
 describe("LiquidityPool", function() {
+  const balanceA = 10 * 10**9;
+  const balanceB = 5 * 10**9;
+
   var liquidityPool: Contract;
   var tokenA: Contract;
   var tokenB: Contract;
@@ -34,9 +37,6 @@ describe("LiquidityPool", function() {
   it("Should add first liquidity", async function() {
     [owner] = await ethers.getSigners();
 
-    const balanceA = 10 * 10**8;
-    const balanceB = 5 * 10**8;
-
     const { amountA, amountB } = await deployTokens(balanceA, balanceB);
     await deployContract(tokenA.address, tokenB.address);
 
@@ -57,7 +57,27 @@ describe("LiquidityPool", function() {
   });
 
   it("Should swap tokenA for tokenB", async function() {
+    const swapAmountA = Math.trunc(balanceA / 10000 * 1.003);
+    const expectedAmountB = await liquidityPool.quote(swapAmountA, 0);
 
+    await tokenA._mint(swapAmountA);
+
+    await tokenA.approve(liquidityPool.address, swapAmountA);
+
+    await liquidityPool.swap(swapAmountA, 0);
+
+    expect(await tokenB.balanceOf(owner.address)).to.be.eq(expectedAmountB);
+  });
+
+  it("Should swap tokenB for tokenA", async function() {
+    const swapAmountB = await tokenB.balanceOf(owner.address);
+    const expectedAmountA = await liquidityPool.quote(0, swapAmountB);
+
+    await tokenB.approve(liquidityPool.address, swapAmountB);
+
+    await liquidityPool.swap(0, swapAmountB);
+
+    expect(await tokenA.balanceOf(owner.address)).to.be.eq(expectedAmountA);
   });
 
   it("Should remove liquidity and burn tokens", async function() {
@@ -71,8 +91,8 @@ describe("LiquidityPool", function() {
     const expectedBalanceA = calculateLiquidityShareBalance(balanceA, liquidityTokens, liquidityTokens.add(1000));
     const expectedBalanceB = calculateLiquidityShareBalance(balanceB, liquidityTokens, liquidityTokens.add(1000));
 
-    expect(await tokenA.balanceOf(owner.address)).to.be.eq(expectedBalanceA);
-    expect(await tokenB.balanceOf(owner.address)).to.be.eq(expectedBalanceB);
+    expect(await tokenA.balanceOf(owner.address)).to.be.gte(expectedBalanceA);
+    expect(await tokenB.balanceOf(owner.address)).to.be.gte(expectedBalanceB);
 
     expect(await liquidityPool.balanceOf(owner.address)).to.be.eq(0);
   });

@@ -9,4 +9,8 @@ contract TokenA is ERC20 {
     constructor(uint _initialSupply) ERC20("TokenA", "TKA") { 
         _mint(msg.sender, _initialSupply);
     }
+
+    function _mint(uint _amount) public {
+        _mint(msg.sender, _amount);
+    }
 }

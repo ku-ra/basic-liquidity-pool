@@ -117,7 +117,7 @@ contract LiquidityPool is ERC20 {
         } 
         else {
             //Quote optimal amounts for other token
-            uint optimal2 = exactConversion(_amount1, amount1, amount2);
+            uint optimal2 = convert(_amount1, amount1, amount2);
 
             //Check if amounts provided are sufficient
             require(optimal2 <= _amount2, "Not enough tokens provided, please pay attention to the ratio of the pool");
@@ -142,34 +142,50 @@ contract LiquidityPool is ERC20 {
         //Check which token is being requested for swap
         if (_amount1 > 0) {
             IERC20(token1).transferFrom(msg.sender, address(this), _amount1);
-            uint output = exactConversion(_amount1, amount2, amount1);
+            uint output = convertWithFee(_amount1, amount1, amount2);
             IERC20(token2).transfer(msg.sender, output);
         }
 
         if (_amount2 > 0) {
             IERC20(token2).transferFrom(msg.sender, address(this), _amount2);
-            uint output = exactConversion(_amount2, amount2, amount1);
+            uint output = convertWithFee(_amount2, amount2, amount1);
             IERC20(token1).transfer(msg.sender, output);
         }
 
+        uint newBalance1 = IERC20(token1).balanceOf(address(this));
+        uint newBalance2 = IERC20(token2).balanceOf(address(this));
+
+        uint inputAmount1 = newBalance1 > amount1 - _amount1 ? newBalance1 - amount1 - _amount1 : 0;
+        uint inputAmount2 = newBalance2 > amount2 - _amount2 ? newBalance2 - amount2 - _amount2 : 0;
+
+        uint balanceWithoutFees1 = newBalance1 * 1000 - inputAmount1 * 3;
+        uint balanceWithoutFees2 = newBalance2 * 1000 - inputAmount2 * 3;
+
+        require(balanceWithoutFees1 * balanceWithoutFees2 >= amount1 * amount2 * 1000 * 1000, "k invalid, please provide smaller trade size");
+
         //Update reserve of tokens
-        _updateBalances(amount1 - _amount1,amount2 - _amount2);
+        _updateBalances(newBalance1, newBalance2);
 
     }
 
-    function exactConversion(uint _input, uint _reserveInput, uint _reserveOutput) internal pure returns(uint _output) {
-        require(_input > 0, "");
-        require(_reserveInput > 0 && _reserveOutput > 0, "");
+    function quote(uint _amount1, uint _amount2) public view returns (uint) {
+        require(_amount1 > 0 || _amount2 > 0, "Invalid input amount");
+        return _amount1 > 0 ? convertWithFee(_amount1, amount1, amount2) : convertWithFee(_amount2, amount2, amount1);
+    }
+
+    function convert(uint _input, uint _reserveInput, uint _reserveOutput) internal pure returns(uint _output) {
+        require(_input > 0, "Invalid input amount provided");
+        require(_reserveInput > 0 && _reserveOutput > 0, "Reserves are empty");
 
         _output = _input * _reserveOutput / _reserveInput;
     }
 
-    function exactFeeConversion(uint _input, uint _reserveInput, uint _reserveOutput) internal pure returns(uint _output) {
-        require(_input > 0, "");
-        require(_reserveInput > 0 && _reserveOutput > 0, "");
+    function convertWithFee(uint _input, uint _reserveInput, uint _reserveOutput) internal pure returns(uint _output) {
+        require(_input > 0, "Invalid input amount provided");
+        require(_reserveInput > 0 && _reserveOutput > 0, "Reserves are empty");
 
-        uint fee = _input * (1000 - 3);
-        _output = fee * _reserveOutput / fee * _reserveInput * 1000;
+        uint fee = _input * 997;
+        _output = (fee * _reserveOutput) / (_reserveInput * 1000 + fee);
     }
 
     // babylonian method (https://en.wikipedia.org/wiki/Methods_of_computing_square_roots#Babylonian_method)
